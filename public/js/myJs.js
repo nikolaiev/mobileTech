@@ -20,6 +20,8 @@ const lakePoins=[[MAX_POSITIVE,1.8],[5.7,2],[3.5,3],[3.7,4],[3.6,5.2],[1.2,MAX_P
 const airoportPoints=[[MIN_NEGATIVE,-1.5],[-4,-1.5],[-4,-1.5],[-2,-3],[-2,-3],[-2,MIN_NEGATIVE],[MIN_NEGATIVE,MIN_NEGATIVE],[MIN_NEGATIVE,-1.5]];
 const explodableAreaPoints=[[4,-2],[5,-2],	[5,-2],[5,-5],[5,-5],[2.5,-5],[2.5,-5],[2.5,-3],[2.5,-3],[4,-2]];
 const sanatoriumPoints=[[2,5],[3,5],[3,5],[3.4,5],[2,5],[2,2],[2,2],[5.7,2],[3.4,5]];
+const livingAreaPoints=[[MIN_NEGATIVE,2],[-6,2],[-6,2],[-6,3],[-6,2],[-6,3],[-6,3],[-5,3],[-5,3],[-5,4],[-5,4],[-4,4],[-4,4],[-4,5], [-4,5],
+[-3,5],[-3,5],[-3,6],[-3,6],[-2,6],[-2,6],[-2,MAX_POSITIVE],[MIN_NEGATIVE,MAX_POSITIVE],[MIN_NEGATIVE,2]];
 
 /*always 8-angle!*/
 let firePosition=[[0.05,0.05],[0.05,0.05],[0.05,-0.05],[0.05,-0.05],[-0.05,-0.05],[-0.05,-0.05],[-0.05,0.05],[-0.05,0.05]];
@@ -67,32 +69,10 @@ const windStack=[new Wind(0,1,1),new Wind(135,0.5,1),
 /*init field function*/
 function initField (data){
 	
-	ctx.lineWidth=1;
-	
-	/*OX*/
-	ctx.beginPath();
-	ctx.moveTo(WIDTH/2+0.5,0);
-	ctx.lineTo(WIDTH/2+0.5,HEIGHT);
-	ctx.stroke();
-	
-	/*OY*/
-	ctx.moveTo(0.5,HEIGHT/2+0.5);
-	ctx.lineTo(WIDTH+0.5,HEIGHT/2+0.5);
-	ctx.stroke();
-	ctx.closePath();
+	drawCoordinatesLines()
 	
 	/*draw living area*/
-	drawLine(MIN_NEGATIVE,2,-6,2);
-	drawLine(-6,2,-6,3);
-	drawLine(-6,2,-6,3);
-	drawLine(-6,3,-5,3);
-	drawLine(-5,3,-5,4);
-	drawLine(-5,4,-4,4);
-	drawLine(-4,4,-4,5);
-	drawLine(-4,5,-3,5);
-	drawLine(-3,5,-3,6);
-	drawLine(-3,6,-2,6);
-	drawLine(-2,6,-2,MAX_POSITIVE);
+	drawLivingArea(livingAreaPoints);
 	
 	/*draw airport*/
 	drawAiroport(airoportPoints);
@@ -106,6 +86,22 @@ function initField (data){
 	
 	/*draw initial fired area*/
 	drawFiredArea(firePosition)
+}
+
+function drawCoordinatesLines(){
+	ctx.lineWidth=1;
+	
+	/*OX*/
+	ctx.beginPath();
+	ctx.moveTo(WIDTH/2+0.5,0);
+	ctx.lineTo(WIDTH/2+0.5,HEIGHT);
+	ctx.stroke();
+	
+	/*OY*/
+	ctx.moveTo(0.5,HEIGHT/2+0.5);
+	ctx.lineTo(WIDTH+0.5,HEIGHT/2+0.5);
+	ctx.stroke();
+	ctx.closePath();
 }
 
 function scaleCoordinates (x,y){
@@ -151,10 +147,10 @@ function drawLake(points){
 	ctx.fillStyle = '#00AAFF';
 	ctx.fill();
 	ctx.stroke();
-	ctx.closePath();
-	
-	
+	ctx.closePath();	
 }
+
+	
 
 function drawFigure(points,isBoomed){
 	ctx.beginPath()
@@ -174,6 +170,10 @@ function drawFigure(points,isBoomed){
 	ctx.stroke();
 	ctx.closePath()
 	
+}
+
+function drawLivingArea(points){
+	drawFigure(points,false);
 }
 
 function drawAiroport(points,isBoomed){
@@ -215,6 +215,9 @@ function drawFiredArea(points){
 	
 	/*always redraw lake!*/
 	drawLake(lakePoins);
+	/*draw in order to make viewable*/
+	drawLivingArea(livingAreaPoints);
+	drawCoordinatesLines();
 		
 	checkAirportBoomed();
 	checkExplodableAreaBoomed();	
