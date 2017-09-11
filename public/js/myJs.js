@@ -1,6 +1,7 @@
 const controllButton=document.getElementById('start-button');
 const mainCanvas=document.getElementById('field')
 const ctx=mainCanvas.getContext("2d");
+const chartCtx = document.getElementById("graph").getContext("2d");
 
 const WIDTH=mainCanvas.width;
 const HEIGHT=mainCanvas.height;
@@ -9,9 +10,12 @@ const HEIGHT=mainCanvas.height;
 const MAX_POSITIVE=6.1;
 const MIN_NEGATIVE=-6.1;
 const PI=3.1415926;
+const FIRE_SPEED_FROM_WIND_FACTOR=0.7;/*Default 0.1*/
+const ANIMATION_SPEED=40; // less - faster
+/*determines gradiation of chart and animation*/
+const GRADIATION_TIME_PERIOD=0.1;/*hours*/
 /*fire spped related to wind spped*/
 
-const FIRE_SPEED_FROM_WIND_FACTOR=0.5;/*Default 0.1*/
 const lakePoins=[[MAX_POSITIVE,1.8],[5.7,2],[3.5,3],[3.7,4],[3.6,5.2],[1.2,MAX_POSITIVE]];
 const airoportPoints=[[MIN_NEGATIVE,-1.5],[-4,-1.5],[-4,-1.5],[-2,-3],[-2,-3],[-2,MIN_NEGATIVE],[MIN_NEGATIVE,MIN_NEGATIVE],[MIN_NEGATIVE,-1.5]];
 const explodableAreaPoints=[[4,-2],[5,-2],	[5,-2],[5,-5],[5,-5],[2.5,-5],[2.5,-5],[2.5,-3],[2.5,-3],[4,-2]];
@@ -19,13 +23,15 @@ const sanatoriumPoints=[[2,5],[3,5],[3,5],[3.4,5],[2,5],[2,2],[2,2],[5.7,2],[3.4
 
 /*always 8-angle!*/
 let firePosition=[[0.05,0.05],[0.05,0.05],[0.05,-0.05],[0.05,-0.05],[-0.05,-0.05],[-0.05,-0.05],[-0.05,0.05],[-0.05,0.05]];
-/*indexes of points being involved is wind shifting for specific angles*/
+
+let damagesData=[];
 
 let isAirPortAlive=true;
 let isExplodableAreaAlive=true;
 let isSanatoriumAlive=true;
 let isLiveAreaAlive=true;
 
+/*indexes of points being involved is wind shifting for specific angles*/
 /*shitty map*/
 let shiftInvolvedPoins = {
 	0	:[0,1,2,3],
@@ -51,18 +57,11 @@ class Wind{
 	}
 }
 
-/*const windStack=[new Wind(0,1,1),new Wind(135,0.5,1),
-					new Wind(270,1,0.5),new Wind(315,2,0.5),
-					new Wind(90,1,0.5),new Wind(135,2.5,0.5),
-					new Wind(45,2,1),new Wind(0,0.5,0.5),
-					new Wind(180,1,1),new Wind(225,0.5,0.5)];*/
-
 const windStack=[new Wind(0,1,1),new Wind(135,0.5,1),
 					new Wind(270,1,0.5),new Wind(315,2,0.5),
 					new Wind(90,1,0.5),new Wind(135,2.5,0.5),
 					new Wind(45,2,1),new Wind(0,0.5,0.5),
-					new Wind(180,1,1),new Wind(225,5,0.5)];
-					
+					new Wind(180,1,1),new Wind(225,0.5,0.5)];
 					
 
 /*init field function*/
@@ -238,6 +237,13 @@ function checkExplodableAreaBoomed(){
 		isExplodableAreaAlive=false;	
 		drawExplodableArea(explodableAreaPoints,true/*boomed*/)
 	}
+
+	/*closestpoint of polygon*/
+	if(pointIsInPoly({x:firePosition[3][0],y:firePosition[3][1]},convertArrayToPointsArray(explodableAreaPoints))){
+		console.log('Explodable Area boomed!')
+		isExplodableAreaAlive=false;	
+		drawExplodableArea(explodableAreaPoints,true/*boomed*/)
+	}
 }
 
 function checkAirportBoomed(){
@@ -273,56 +279,68 @@ function checkSanatoriumBoomed(){
 
 /*starts wind*/
 function startWindExperiment(){
-	var currnetWind=null;
+	windShift(windStack.pop())		
+}
+
+function windShift(wind){
+	if(wind===undefined)
+		return;
+	console.log("Wind with parameters : ")
+	console.log("angle : " + wind.angle);
+	console.log("speed : " + wind.speed);
+	console.log("duration : " + wind.duration);
+	console.log("\n\n")
+
+	let btime=GRADIATION_TIME_PERIOD;
+	/*shifting fire*/
+	let shiftPointsIndexes=shiftInvolvedPoins[wind.angle]
+
+	/*calculate shift vector*/
+	let shiftOX=(Math.cos(toRadians(wind.angle)))*wind.speed*btime;/*kilometers*/
+	let shiftOY=(Math.sin(toRadians(wind.angle)))*wind.speed*btime;/*kilometers*/
+	
 	
 	let timer=setInterval(()=>{
-		currnetWind=windStack.pop()
-		if(currnetWind===undefined){
-			clearInterval(timer);
-			return;
+		
+		//TODO get rid off pointless points
+		for(let key in shiftPointsIndexes){
+			/*index of point*/
+			let i=shiftPointsIndexes[key];
+			firePosition[i][0]/*x*/+=shiftOX*FIRE_SPEED_FROM_WIND_FACTOR;
+			firePosition[i][1]/*y*/+=shiftOY*FIRE_SPEED_FROM_WIND_FACTOR;
 		}
 		
-		console.log("Wind with parameters : ")
-		console.log("angle : " + currnetWind.angle);
-		console.log("speed : " + currnetWind.speed);
-		console.log("duration : " + currnetWind.duration);
-		console.log("\n\n")
-		
-		/*shifting fire*/
-		shiftFireWithWind(currnetWind,firePosition);
 		
 		/*redrawing fire*/
 		drawFiredArea(firePosition);
 		
-		//TODO count damage!!
-		//draw graphics!
-		//redrawGraphic();
+		/*investigate damaged area*/
+		countDamage();
 		
-	},1000);
-	
-	
-	
-	
+		/*rebuild chart*/
+		buildChart();
+
+		/*cancelint timer*/
+		btime+=GRADIATION_TIME_PERIOD;
+
+		if(btime>wind.duration){
+			windShift(windStack.pop());
+			clearInterval(timer);
+		}
+
+	},ANIMATION_SPEED)
+
 }
 
-function shiftFireWithWind(wind,startFirePosition){
-	let shiftPointsIndexes=shiftInvolvedPoins[wind.angle]
-	
-	/*calculate shift vector*/
-	let shiftOX=(Math.cos(toRadians(wind.angle)))*wind.speed*wind.duration;/*kilometers*/
-	let shiftOY=(Math.sin(toRadians(wind.angle)))*wind.speed*wind.duration;/*kilometers*/
-	
-	//TODO get rid off pointless points
-	for(let key in shiftPointsIndexes){
-		/*index of point*/
-		let i=shiftPointsIndexes[key];
-		startFirePosition[i][0]/*x*/+=shiftOX*FIRE_SPEED_FROM_WIND_FACTOR;
-		startFirePosition[i][1]/*y*/+=shiftOY*FIRE_SPEED_FROM_WIND_FACTOR;
-	}
+function toRadians (angle) {
+	return angle * (Math.PI / 180);
+}
 
-	function toRadians (angle) {
-	  return angle * (Math.PI / 180);
-	}	
+function countDamage(){
+	//TODO count damage
+	let newDamage=Math.random() * (500 - 20) + 20
+	let lastDamage=damagesData[damagesData.length-1]||0;
+	damagesData.push(lastDamage+newDamage)
 }
 
 /*determines is Point inside Polygon*/
@@ -360,6 +378,64 @@ function convertArrayToPointsArray(arr){
 	return points;
 }
 
+
+function buildChart(){
+	let labels=[];
+	let data=[];
+	
+	for(let i=0;i<damagesData.length;i++){
+		labels.push(Math.round(GRADIATION_TIME_PERIOD*i*100)/100);
+	}
+
+	var config = {
+	type: 'line',
+	data: {
+	    labels: labels,
+	    datasets: [{
+	        label: "Cost of fire damage",
+	        backgroundColor: window.chartColors.blue,
+	        borderColor: window.chartColors.red,
+	        data: damagesData,
+	        fill: false,
+	    }]
+	},
+	options: {
+	    responsive: true,
+	    title:{
+	        display:true,
+	        text:'Damages Chart'
+	    },
+	    tooltips: {
+	        mode: 'index',
+	        intersect: false,
+	    },
+	    hover: {
+	        mode: 'nearest',
+	        intersect: true
+	    },
+	    scales: {
+	        xAxes: [{
+	            display: true,
+	            scaleLabel: {
+	                display: true,
+	                labelString: 'Hour'
+	            }
+	        }],
+	        yAxes: [{
+	            display: true,
+	            scaleLabel: {
+	                display: true,
+	                labelString: 'Value'
+	            }
+	        }]
+	    }
+	}
+	};
+
+	
+	window.myLine = new Chart(chartCtx, config);
+            
+}
 
 /*set controllers and initialize field*/
 document.addEventListener("DOMContentLoaded", function(event) { 

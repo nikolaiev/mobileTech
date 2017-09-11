@@ -1,11 +1,29 @@
 <html>
 	<head>
-		<link rel="stylesheet" type="text/css" href="css/myCss.css">
+	<title>Lab 1	</title>
+	    <script src="js/Chart.bundle.js"></script>
+	    <script src="js/utils.js"></script>
+	    <style>
+	    canvas{
+	        -moz-user-select: none;
+	        -webkit-user-select: none;
+	        -ms-user-select: none;
+	    }
+	    .leftable{
+	    	float :left;
+	    	margin-left: 50px
+	    }
+	    </style>
 	</head>
 	
 	<body>
-		<canvas id="field" width=600px height=600px></canvas>
+		<canvas class="leftable" id="field" width=600px height=600px></canvas>
+		<div class="leftable" style="width:600px">
+	    	<canvas id="graph" ></canvas>
+	    <div>
 		<button id="start-button">Start</button>
-	</body>	
+		
+
+    </body>	
 	<script src="js/myJs.js" type="text/javascript"></script>
 </html>
