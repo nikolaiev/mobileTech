@@ -7,25 +7,32 @@ const WIDTH=mainCanvas.width;
 const HEIGHT=mainCanvas.height;
 
 /*bounds coordinates values on field*/
-const MAX_POSITIVE=6.1;
-const MIN_NEGATIVE=-6.1;
-const FIRE_SPEED_FROM_WIND_FACTOR=0.6;/*Default 0.1*/
+const MAX_POSITIVE=12.2;
+const MIN_NEGATIVE=-12.2;
+const METERS_IN_GRADUATION=100;
+
+/*fire spped related to wind spped*/
+const FIRE_SPEED_FROM_WIND_FACTOR=0.1;/*Default 0.1*/
 const ANIMATION_SPEED=10; // less - faster
+
 /*determines gradiation of chart and animation*/
 const GRADIATION_TIME_PERIOD=0.1;/*hours*/
-/*fire spped related to wind spped*/
 
-const lakePoints=[[MAX_POSITIVE,1.8],[5.7,2],[3.5,3],[3.7,4],[3.6,5.2],[1.2,MAX_POSITIVE]];
-const airportPoints=[[MIN_NEGATIVE,-1.5],[-4,-1.5],[-4,-1.5],[-2,-3],[-2,-3],[-2,MIN_NEGATIVE],[MIN_NEGATIVE,MIN_NEGATIVE],[MIN_NEGATIVE,-1.5]];
-const explodableAreaPoints=[[4,-2],[5,-2],	[5,-2],[5,-5],[5,-5],[2.5,-5],[2.5,-5],[2.5,-3],[2.5,-3],[4,-2]];
-const sanatoriumPoints=[[2,5],[3,5],[3,5],[3.4,5],[2,5],[2,2],[2,2],[5.7,2],[3.4,5]];
-const livingAreaPoints=[[MIN_NEGATIVE,2],[-6,2],[-6,2],[-6,3],[-6,2],[-6,3],[-6,3],[-5,3],[-5,3],[-5,4],[-5,4],[-4,4],[-4,4],[-4,5], [-4,5],
-[-3,5],[-3,5],[-3,6],[-3,6],[-2,6],[-2,6],[-2,MAX_POSITIVE],[MIN_NEGATIVE,MAX_POSITIVE],[MIN_NEGATIVE,2]];
+/*lake points for drawing*/
+const lakePoints	=	[[MAX_POSITIVE,1.8],[5.7,2],[3.5,3],[3.7,4],[3.6,5.2],[1.2,MAX_POSITIVE]];
+/*lake as precision polygon in order to calculate square taken from fire*/
+const lakePointsPrecisionPolygon	=	[[MAX_POSITIVE,1.8],[3.68,3],[3.62,3.4],[3.7,4],
+										[3.7,4.5],[3.58,4.8],[3.3,5.2],[1.2,MAX_POSITIVE],
+										[MAX_POSITIVE,MAX_POSITIVE],[MAX_POSITIVE,1.8]];
 
-
+const airportPoints=[[MIN_NEGATIVE,-1.5],[-4,-1.5],[-2,-3],[-2,MIN_NEGATIVE],[MIN_NEGATIVE,MIN_NEGATIVE],[MIN_NEGATIVE,-1.5]];
+const explodableAreaPoints=[[4,-2],[5,-2],[5,-5],[2.5,-5],[2.5,-3],[4,-2]];
+const sanatoriumPoints=[[2,5],[3.4,5],[3.65,4.6],[3.65,4.5],[3.7,4],[3.68,3.2],[3.78,3],[5.7,2],[2,2],[2,5]];
+const livingAreaPoints=[[MIN_NEGATIVE,2],[-6,2],[-6,3],[-5,3],[-5,4],[-4,4],[-4,5],[-3,5],[-3,6],[-2,6],[-2,MAX_POSITIVE],[MIN_NEGATIVE,MAX_POSITIVE],[MIN_NEGATIVE,2]];
 
 const AIRPORT_DAMAGE_PRICE	=	10000000;//hrn
 const SANATORY_DAMAGE_PRICE	=	300000;//hrn
+
 /* extra 20 meters by perimeter of forest */
 const EXPLODABLE_AREA_DAMAGE_PRICE	=	500000;//hrn
 const LIVING_AREA_DAMAGE_PRICE_PER_SQUARE_METER	=	20000;//hrn
@@ -45,7 +52,7 @@ let isLiveAreaAlive=true;
 
 let areasDamagePrice=0;
 /*tempor variable*/
-let lastForestDamage=0;
+let lastDamage=0;
 
 /*indexes of points being involved is wind shifting for specific angles*/
 /*shitty map*/
@@ -69,16 +76,17 @@ class Wind{
 	constructor(angle,duration,speed){
 		this.angle=angle;
 		this.duration=duration;
-		this.speed=speed/1000*3600;//kilometers/seconds
+		this.speed=speed/METERS_IN_GRADUATION*3600;//kilometers/seconds
 	}
 }
 
+/*original values*/
 const windStack=[new Wind(0,1,1),new Wind(135,0.5,1),
 					new Wind(270,1,0.5),new Wind(315,2,0.5),
 					new Wind(90,1,0.5),new Wind(135,2.5,0.5),
 					new Wind(45,2,1),new Wind(0,0.5,0.5),
 					new Wind(180,1,1),new Wind(225,0.5,0.5)];
-					
+	
 
 /*init field function*/
 function initField (data){
@@ -133,8 +141,8 @@ function scaleCoordinates (x,y){
 function scaleShiftVector(x,y/*meters*/){
 	//y=-y;
 	return {
-		x:(x/1000),
-		y:(y/1000)
+		x:(x/METERS_IN_GRADUATION),
+		y:(y/METERS_IN_GRADUATION)
 	}
 }
 
@@ -163,20 +171,17 @@ function drawLake(points){
 	ctx.closePath();	
 }
 
-	
-
 function drawFigure(points,isBoomed){
 	ctx.beginPath()
 	let pair1=scaleCoordinates(points[0][0],points[0][1]);
 	
 	ctx.moveTo(pair1.x,pair1.y);
 		
-	for(let i =1;i<points.length-1;i++){
-		let pair2=scaleCoordinates(points[i+1][0],points[i+1][1]);
+	for(let i =1;i<points.length;i++){
+		let pair2=scaleCoordinates(points[i][0],points[i][1]);
 		ctx.lineTo(pair2.x,pair2.y);
 	}
 	if(isBoomed){
-		console.log('BOOMMMEDDDD~!!!')
 		ctx.fillStyle = '#FF0000';
 		ctx.fill();		
 	}
@@ -268,12 +273,12 @@ function getPerimeterInMeters(points){
     /*first and last points of array*/
     let a = points[0][0] - points[points.length-1][0];
     let b = points[0][1] - points[points.length-1][1];
-    accumulator+=Math.sqrt( a*a + b*b )*1000;
+    accumulator+=Math.sqrt( a*a + b*b )*METERS_IN_GRADUATION;
 
     for(let i=0;i<points.length-1;i++){
         a = points[i][0] - points[i+1][0];
         b = points[i][1] - points[i+1][1];
-        accumulator+=Math.sqrt( a*a + b*b )*1000;
+        accumulator+=Math.sqrt( a*a + b*b )*METERS_IN_GRADUATION;
     }
 
     return accumulator;
@@ -328,11 +333,6 @@ function startWindExperiment(){
 function windShift(wind){
 	if(wind===undefined)
 		return;
-	console.log("Wind with parameters : ");
-	console.log("angle : " + wind.angle);
-	console.log("speed : " + wind.speed);
-	console.log("duration : " + wind.duration);
-	console.log("\n\n");
 
 	let btime=GRADIATION_TIME_PERIOD;
 	/*shifting fire*/
@@ -347,8 +347,9 @@ function windShift(wind){
 		for(let key in shiftPointsIndexes){
 			/*index of point*/
 			let i=shiftPointsIndexes[key];
-			firePosition[i][0]/*x*/+=shiftOX*FIRE_SPEED_FROM_WIND_FACTOR;
-			firePosition[i][1]/*y*/+=shiftOY*FIRE_SPEED_FROM_WIND_FACTOR;
+			
+			firePosition[i][0]/*x*/+=shiftOX*FIRE_SPEED_FROM_WIND_FACTOR;			
+			firePosition[i][1]/*y*/+=shiftOY*FIRE_SPEED_FROM_WIND_FACTOR;			
 		}
 		
 		
@@ -378,38 +379,54 @@ function toRadians (angle) {
 	return angle * (Math.PI / 180);
 }
 
-function countDamage(){
-	//TODO count living area
 
-    console.log('new damage is '+ (areasDamagePrice + getForestPrice()-lastForestDamage))
-    damagesData.push(areasDamagePrice + getForestPrice()-lastForestDamage);
-    lastForestDamage =getForestPrice();
-    /*empty accumulator*/
-    areasDamagePrice=0.;
+/*determines firs iteration step*/
+let isFirtsIteration=true;
+function countDamage(){
+	let burnedPrice=getBurnedSquarePrice();
+    
+	/*add summ of exploration and forest price*/
+	let resultDamage=areasDamagePrice + burnedPrice;
+	console.log(resultDamage)
+	
+	/*add new data to chart*/
+	if(!isFirtsIteration){
+		damagesData.push((resultDamage-lastDamage)>0?(resultDamage-lastDamage):0.);
+	}
+	else{
+		isFirtsIteration=false;
+	}
+	
+    
+	/*remember last step*/
+	lastDamage = burnedPrice;    
 }
 
-function getForestPrice(){
-    //TODO do not count areas with no forest
+/**
+*counts only forest and living area price
+*does not count EXPLORATION PRICE!!!
+*/
+function getBurnedSquarePrice(){
     /*brakhmaputra formula is used*/
     /*first rectangle*/
     let userPoints=firePosition.slice(4);
     let p=getPerimeterInMeters(userPoints)/2;
-    let summarySquare=1;
+    let summaryBurnedForestSquare=1; // summary forest square
 
     let a = userPoints[0][0] - userPoints[3][0];
     let b = userPoints[0][1] - userPoints[3][1];
-    summarySquare*=(p-Math.sqrt( a*a + b*b )*1000);
+    summaryBurnedForestSquare*=(p-Math.sqrt( a*a + b*b )*METERS_IN_GRADUATION);
 
     for(let i=0;i<userPoints.length-1;i++){
         a = userPoints[i][0] - userPoints[i+1][0];
         b = userPoints[i][1] - userPoints[i+1][1];
 
-        summarySquare*=(p-Math.sqrt( a*a + b*b )*1000);
+        summaryBurnedForestSquare*=(p-Math.sqrt( a*a + b*b )*METERS_IN_GRADUATION);
     }
 
-    summarySquare=Math.sqrt(summarySquare);
-
-    /*second rectangle*/
+    summaryBurnedForestSquare=Math.sqrt(summaryBurnedForestSquare);
+	
+	/*second rectangle*/
     userPoints=firePosition.slice(4,8);
     p=getPerimeterInMeters(userPoints)/2;
 
@@ -417,17 +434,17 @@ function getForestPrice(){
 
     a = userPoints[0][0] - userPoints[3][0];
     b = userPoints[0][1] - userPoints[3][1];
-    summarySquareSecondHalf*=(p-Math.sqrt( a*a + b*b )*1000);
+    summarySquareSecondHalf*=(p-Math.sqrt( a*a + b*b )*METERS_IN_GRADUATION);
 
 
     for(let i=0;i<userPoints.length-1;i++){
         let a = userPoints[i][0] - userPoints[i+1][0];
         let b = userPoints[i][1] - userPoints[i+1][1];
-        summarySquareSecondHalf*=(p-Math.sqrt( a*a + b*b )*1000);
+        summarySquareSecondHalf*=(p-Math.sqrt( a*a + b*b )*METERS_IN_GRADUATION);
     }
     summarySquareSecondHalf=Math.sqrt(summarySquareSecondHalf);
-
-    summarySquare+=summarySquareSecondHalf;
+	
+    summaryBurnedForestSquare+=summarySquareSecondHalf;
 
     /*middle path*/
 
@@ -438,20 +455,130 @@ function getForestPrice(){
 
     a = userPoints[0][0] - userPoints[3][0];
     b = userPoints[0][1] - userPoints[3][1];
-    summarySquareSecondHalf*=(p-Math.sqrt( a*a + b*b )*1000);
+    summarySquareSecondHalf*=(p-Math.sqrt( a*a + b*b )*METERS_IN_GRADUATION);
 
 
     for(let i=0;i<userPoints.length-1;i++){
         let a = userPoints[i][0] - userPoints[i+1][0];
         let b = userPoints[i][1] - userPoints[i+1][1];
-        summarySquareSecondHalf*=(p-Math.sqrt( a*a + b*b )*1000);
+        summarySquareSecondHalf*=(p-Math.sqrt( a*a + b*b )*METERS_IN_GRADUATION);
     }
     summarySquareSecondHalf=Math.sqrt(summarySquareSecondHalf);
+	summaryBurnedForestSquare+=summarySquareSecondHalf;
+	/*find getBurnedLivingAreaSquare*/
+	let burnedLivingAreaSquare	=	getBurnedLivingAreaSquare();
+	let burnedSanatoriumSquare	=	getCoveredFigureSquare(sanatoriumPoints);
+	let burnedExplodableAreaSquare	=	getCoveredFigureSquare(explodableAreaPoints);
+	let burnedAirportSquare		=	getCoveredFigureSquare(airportPoints);
+	let imaginaryBurnedLakeSquare	=	getCoveredFigureSquare(lakePointsPrecisionPolygon);
+	console.log("imaginaryBurnedLakeSquare "+imaginaryBurnedLakeSquare );
+	console.log("burnedSanatoriumSquare "+burnedSanatoriumSquare );
+	
+	/*remove not forest areas*/
+	summaryBurnedForestSquare-=burnedLivingAreaSquare;
+	summaryBurnedForestSquare-=burnedSanatoriumSquare;
+	summaryBurnedForestSquare-=burnedExplodableAreaSquare;
+	summaryBurnedForestSquare-=burnedAirportSquare;
+	summaryBurnedForestSquare-=imaginaryBurnedLakeSquare;
+	/*summary price*/
+    return summaryBurnedForestSquare*FOREST_DAMAGE_PRICE_PER_SQUARE_METER
+			+	burnedLivingAreaSquare*LIVING_AREA_DAMAGE_PRICE_PER_SQUARE_METER;			
+			
+}
 
-    summarySquare+=summarySquareSecondHalf;
+/**
+*@returns total burned square of living area
+*/
+//TODO fix
+function getBurnedLivingAreaSquare(){
+	
+	const DELTA=0.05; //kilometer //50 meters square
+	
+	let summarySquare=0.
+	/*iterative project of checking small pieces 100x100m of horizontal line*/
+	
+	/*iteration through lines*/
+	for(let i=1;i<livingAreaPoints.length-2;i+=2){
+		bottomPoint=livingAreaPoints[i];
+		topPoint=livingAreaPoints[i+1];
+		
+		let horizontalCoordinate=bottomPoint[0];//x - coordinate
+		
+		/*iteration throught horizontal lyne*/
+		while(horizontalCoordinate>MIN_NEGATIVE+DELTA-0.025){
+		
+			let verticalCoordinate=bottomPoint[1];//y -coordinate
+
+			while(verticalCoordinate < topPoint[1]-DELTA+0.025/*y*/){
+				/*iteration throught vertical line*/
+				//TODO check if inside flame! O_O
+				
+				if(pointIsInPoly({x:horizontalCoordinate,y:verticalCoordinate},convertArrayToPointsArray(firePosition))
+					&&
+				   pointIsInPoly({x:(horizontalCoordinate-DELTA),y:(verticalCoordinate+DELTA)},convertArrayToPointsArray(firePosition))
+				)
+				{
+					//console.log('HOUSE IN FIRE');
+					summarySquare+=DELTA*DELTA;/*meters*/
+				}
+				verticalCoordinate+=DELTA;
+			}
+			horizontalCoordinate-=DELTA;
+		}
+		
+	}
+	console.log('Summary burned house square '+ summarySquare)
+	return summarySquare*METERS_IN_GRADUATION*METERS_IN_GRADUATION;
+}
 
 
-    return summarySquare*FOREST_DAMAGE_PRICE_PER_SQUARE_METER;
+/**
+*@returns covered by fire airport or explodable area square (airport does not burn after explore)
+*/
+//TODO fix method
+function getCoveredFigureSquare(figurePoints){
+	
+	const DELTA=0.05; //kilometer //50 meters square
+	
+	let summarySquare=0.
+	/*iterative project of checking small pieces 100x100m of horizontal line*/
+	
+	/*iteration through lines*/
+	let leftX=findLeftX(figurePoints);
+	let rightX=findRightX(figurePoints);
+	let topY=findTopY(figurePoints);
+	let bottomY=findBottomY(figurePoints);
+	
+	console.log("\n\n"+leftX)
+	console.log(rightX)
+	console.log(topY)
+	console.log(bottomY)
+	
+	let xCoordinate=rightX;//x - coordinate
+	
+	/*iteration throught horizontal lyne*/
+	while(xCoordinate>leftX){
+	
+		let yCoordinate=bottomY;//y -coordinate
+
+		while(yCoordinate < topY){
+			/*iteration throught vertical line*/			
+			if(	/*as we check containing rectangle (not polygon) - we should check if square inside polygon*/
+				pointIsInPoly({x:xCoordinate,y:yCoordinate},convertArrayToPointsArray(figurePoints))
+				&&
+				/*check fire*/
+				pointIsInPoly({x:xCoordinate,y:yCoordinate},convertArrayToPointsArray(firePosition))				
+			)
+			{
+				//console.log('HOUSE IN FIRE');
+				summarySquare+=DELTA*DELTA;/*meters*/
+			}
+			yCoordinate+=DELTA;
+		}
+		xCoordinate-=DELTA;
+	}
+	
+	return summarySquare*METERS_IN_GRADUATION*METERS_IN_GRADUATION;
 }
 
 /*determines is Point inside Polygon*/
@@ -489,12 +616,62 @@ function convertArrayToPointsArray(arr){
 	return points;
 }
 
+//===============HELPS FUNCTION BEGIN
+function findRightX(points){
+	let resultX=points[0][0];//x
+	
+	for(let i=0;i<points.length;i++){
+		if(resultX < points[i][0]/*x*/){
+			resultX=points[i][0];
+		}
+	}	
+	
+	return resultX;
+}
+
+function findLeftX(points){
+	let resultX=points[0][0];//x
+	
+	for(let i=0;i<points.length;i++){
+		if(resultX > points[i][0]/*x*/){
+			resultX=points[i][0];
+		}
+	}	
+	
+	return resultX;
+}
+
+function findTopY(points){
+	let resultY=points[0][1];//x
+	
+	for(let i=0;i<points.length;i++){
+		if(resultY < points[i][1]/*x*/){
+			resultY=points[i][1];
+		}
+	}	
+	
+	return resultY;
+}
+
+function findBottomY(points){
+	let resultY=points[0][1];//x
+	
+	for(let i=0;i<points.length;i++){
+		if(resultY > points[i][1]/*x*/){
+			resultY=points[i][1];
+		}
+	}
+	
+	return resultY;
+}
+//===============HELPS FUNCTION ENDS
 
 function buildChart(){
 	let labels=[];
 	let data=[];
 	
-	for(let i=0;i<damagesData.length;i++){
+	
+	for(let i=1;i<damagesData.length;i++){
 		labels.push(Math.round(GRADIATION_TIME_PERIOD*i*100)/100);
 	}
 
